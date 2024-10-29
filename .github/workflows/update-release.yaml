@@ -1,0 +1,35 @@
+name: Update release on website
+on:
+  release:
+    types:
+      - published
+      - edited
+jobs:
+  dispatch-to-website-repo:
+    name: Dispatch update event to website repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get release details
+        run: |
+          CURRENT_REF=${{ github.ref }}
+          CURRENT_TAG=${CURRENT_REF#refs/tags/}
+          LATEST_RELEASE_INFO=`curl -H "Authorization: token ${{ secrets.MY_TOKEN }}" -s "https://api.github.com/repos/andrei-toterman/multipass/releases/latest"`
+          LATEST_RELEASE_TAG=`echo $LATEST_RELEASE_INFO | jq -r '.tag_name'`
+          LATEST_RELEASE_PRERELEASE=`echo $LATEST_RELEASE_INFO | jq -r '.prerelease'`
+          LATEST_RELEASE_DRAFT=`echo $LATEST_RELEASE_INFO | jq -r '.draft'`
+          LATEST_RELEASE_DESC=`echo $LATEST_RELEASE_INFO | jq -r '.body' | head -n1`
+
+          echo "CURRENT_TAG=$CURRENT_TAG" >> $GITHUB_ENV
+          echo "LATEST_RELEASE_TAG=$LATEST_RELEASE_TAG" >> $GITHUB_ENV
+          echo "LATEST_RELEASE_PRERELEASE=$LATEST_RELEASE_PRERELEASE" >> $GITHUB_ENV
+          echo "LATEST_RELEASE_DRAFT=$LATEST_RELEASE_DRAFT" >> $GITHUB_ENV
+          echo "LATEST_RELEASE_DESC=$LATEST_RELEASE_DESC" >> $GITHUB_ENV
+          
+      - name: Dispatch release update event
+        if: env.LATEST_RELEASE_TAG == env.CURRENT_TAG && env.LATEST_RELEASE_DRAFT == 'false'
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.MY_TOKEN }}
+          repository: andrei-toterman/multipass.run
+          event-type: update-release
+          client-payload: '{"tag": "${{ env.CURRENT_TAG }}", "desc": "${{ env.LATEST_RELEASE_DESC }}"}'
